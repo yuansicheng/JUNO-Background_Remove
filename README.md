@@ -1,6 +1,6 @@
 root2hdf5  
-  source environment: source "/afs/ihep.ac.cn/users/y/yuansc/envs/setup_conda.sh"  
-  generate h5 files for signal and noise: python dataset/root2hdf5_new_all.py  
+&emsp;source environment: source "/afs/ihep.ac.cn/users/y/yuansc/envs/setup_conda.sh"  
+&emsp;generate h5 files for signal and noise: python dataset/root2hdf5_new_all.py  
       
 then devide dataset into train and val  
   your dataset folder should be like that:  
