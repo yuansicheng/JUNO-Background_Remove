@@ -5,7 +5,7 @@ import math
 import sys
 import argparse
 from PIL import Image
-print(1)
+#print(1)
 
 import ROOT as rt
 
@@ -53,7 +53,10 @@ def getProjectionDict(mode):
 def root2hdf5(batch_size, tree, start_event, out_name, projection_dict, projection_dict_shape, 
 				npe_cut=0):
 	hf = h5py.File(out_name, 'w')
-	df = np.full( ( batch_size,projection_dict_shape[0], projection_dict_shape[1] ), 0, np.float32)
+	pmt_id_df = np.full( ( batch_size,projection_dict_shape[0], projection_dict_shape[1]), 0, np.float32)
+	hit_time_df = np.full( ( batch_size,projection_dict_shape[0], projection_dict_shape[1]), 0, np.float32)
+	init_r_df = np.full( ( batch_size ), 0, np.float32)
+	npe_df = np.full( ( batch_size ), 0, np.float32)
 	ie = start_event
 	n = 0
 	global totalEntries
@@ -63,22 +66,41 @@ def root2hdf5(batch_size, tree, start_event, out_name, projection_dict, projecti
 		tree.GetEntry(ie)
 		ie += 1
 		pmt_id=getattr(tree, "pmt_id")
+		pmt_hit_time=getattr(tree, "pmt_hit_time")
+		init_pos = [getattr(tree, 'init_x'), getattr(tree, 'init_y'), getattr(tree, 'init_z')]
+		init_r_df[n] = math.sqrt(sum([x**2 for x in init_pos]))
+		npe_df[n] = len(pmt_id)
 		#cut npe
-		if len(list(pmt_id)) <= npe_cut:
-			continue
-		for i in pmt_id:
+		#if len(list(pmt_id)) <= npe_cut:
+			#continue
+		for i in range(len(pmt_id)):
 			try:
-				pos=projection_dict[i]
-				df[n,projection_dict[i][0],projection_dict[i][1]]+=1
+				pos=projection_dict[pmt_id[i]]
+				if pmt_id_df[n,pos[0],pos[1]]==0:
+					hit_time_df[n,pos[0],pos[1]] = pmt_hit_time[i]
+				else:
+					hit_time_df[n,pos[0],pos[1]] = min(hit_time_df[n,pos[0],pos[1]], pmt_hit_time[i])
+				pmt_id_df[n,pos[0],pos[1]]+=1
 			except:
 				pass
 		n += 1
 		#array2img(df[ie - start_event]).show()
 		#print(df[ie - start_event].max())
 
-	hf.create_dataset('data', data=df)
+	print('type(pmt_id_df)'+str(type(pmt_id_df)))
+	print(type(hit_time_df))
+	print(type(init_r_df))
+	print(type(npe_df))
+
+	print(init_r_df[:10])
+	print(npe_df[:10])
+	hf.create_dataset('pmt_hit', data=pmt_id_df)
+	hf.create_dataset('first_hit_time', data=hit_time_df)
+	hf.create_dataset('init_r', data=init_r_df)
+	hf.create_dataset('npe', data=npe_df)
 	hf.close()
 	print('saved %s'%out_name)
+
 
 	return ie
 
@@ -99,10 +121,13 @@ if __name__=="__main__":
 	outFileName= parse_args.output
 	r_scale = parse_args.r_scale
 	theta_scale = parse_args.theta_scale
-	projection_mode = parse_args.projection_mode
+	projection_mode = parse_args.projection_mode 
 
 	filePath = '/cefs/higgs/wxfang/JUNO/noise_remove/C14_1Time_pTargetVolume_LSMaterial/*.root'
-	outFileName = 'noi/c14/c14_dataset.h5'
+	outFileName = 'noi/c14_2c/c14_dataset.h5'
+
+	#filePath ='/cefs/higgs/wxfang/JUNO/noise_remove/positron_skim/*.root'
+	#outFileName = 'pos_2c/positron_skim_dataset.h5'
 
 	projection_dict, projection_dict_shape=getProjectionDict(projection_mode)
 
@@ -115,9 +140,10 @@ if __name__=="__main__":
 	print ('total events=%d, batch_size=%d, batchs=%d, last=%d'%(totalEntries, batch_size, batch, totalEntries%batch_size))
 
 	start=1
-	npe_cut = 100
+	npe_cut = 0
+	file_num = 1
 	
-	for i in range(30):
+	for i in range(file_num):
 	#for i in range(1):
 		if start:
 			out_name = outFileName.replace('.h5','_batch%d_N%d.h5'%(i, batch_size))

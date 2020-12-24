@@ -5,6 +5,7 @@ import sys
 import argparse
 from PIL import Image
 import os
+import copy
 
 def get_parser():
 	parser = argparse.ArgumentParser(
@@ -32,8 +33,9 @@ if __name__ == "__main__":
 	noise = parse_args.noise
 	output = parse_args.output
 
-	noise = "noi/c14/"
-	output = "pos+noi/c14/positron+c14_dataset.h5"
+	signal = 'pos_2c/'
+	noise = "noi/c14_2c/"
+	output = "pos+noi/c14_2c/positron+c14_dataset.h5"
 
 	sig_list = [signal + x for x in os.listdir(signal) if ".h5" in x]
 	noi_list = [noise + x for x in os.listdir(noise) if ".h5" in x]
@@ -43,7 +45,13 @@ if __name__ == "__main__":
 	for i in range(min(len(sig_list), len(noi_list))):
 		sig_arr = h5py.File(sig_list[i], 'r')['data'][:]
 		noi_arr = h5py.File(noi_list[i], 'r')['data'][:]
-		sig_and_noi_arr = sig_arr + noi_arr
+		sig_and_noi_arr = copy.deepcopy(sig_arr)
+		sig_and_noi_arr[:,:,:,0] += noi_arr[:,:,:,0]
+		
+		sig_and_noi_arr[:,:,:,1] = np.where((sig_arr[:,:,:,1]==0) | (noi_arr[:,:,:,1]==0), \
+			np.maximum(sig_arr[:,:,:,1],noi_arr[:,:,:,1]), \
+			np.minimum(sig_arr[:,:,:,1],noi_arr[:,:,:,1]))
+		
 
 		out_name = output.replace('.h5','_batch%d_N%d.h5'%(i, batch_size))
 		hf = h5py.File(out_name, 'w')

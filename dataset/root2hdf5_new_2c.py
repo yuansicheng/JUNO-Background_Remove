@@ -53,7 +53,7 @@ def getProjectionDict(mode):
 def root2hdf5(batch_size, tree, start_event, out_name, projection_dict, projection_dict_shape, 
 				npe_cut=0):
 	hf = h5py.File(out_name, 'w')
-	df = np.full( ( batch_size,projection_dict_shape[0], projection_dict_shape[1] ), 0, np.float32)
+	df = np.full( ( batch_size,projection_dict_shape[0], projection_dict_shape[1], 2 ), 0, np.float32)
 	ie = start_event
 	n = 0
 	global totalEntries
@@ -63,22 +63,30 @@ def root2hdf5(batch_size, tree, start_event, out_name, projection_dict, projecti
 		tree.GetEntry(ie)
 		ie += 1
 		pmt_id=getattr(tree, "pmt_id")
+		pmt_hit_time=getattr(tree, "pmt_hit_time")
 		#cut npe
 		if len(list(pmt_id)) <= npe_cut:
 			continue
-		for i in pmt_id:
+		for i in range(len(pmt_id)):
 			try:
-				pos=projection_dict[i]
-				df[n,projection_dict[i][0],projection_dict[i][1]]+=1
+				pos=projection_dict[pmt_id[i]]
+				if df[n,pos[0],pos[1],0]==0:
+					df[n,pos[0],pos[1],1] = pmt_hit_time[i]
+				else:
+					df[n,pos[0],pos[1],1] = min(df[n,pos[0],pos[1],1], pmt_hit_time[i])
+				df[n,pos[0],pos[1],0]+=1
 			except:
 				pass
 		n += 1
 		#array2img(df[ie - start_event]).show()
 		#print(df[ie - start_event].max())
 
+	print(np.sum(df[0,:,:,0]))
+	print(np.sum(df[0,:,:,1]))
 	hf.create_dataset('data', data=df)
 	hf.close()
 	print('saved %s'%out_name)
+
 
 	return ie
 
@@ -99,10 +107,13 @@ if __name__=="__main__":
 	outFileName= parse_args.output
 	r_scale = parse_args.r_scale
 	theta_scale = parse_args.theta_scale
-	projection_mode = parse_args.projection_mode
+	projection_mode = parse_args.projection_mode 
 
-	filePath = '/cefs/higgs/wxfang/JUNO/noise_remove/C14_1Time_pTargetVolume_LSMaterial/*.root'
-	outFileName = 'noi/c14/c14_dataset.h5'
+	#filePath = '/cefs/higgs/wxfang/JUNO/noise_remove/C14_1Time_pTargetVolume_LSMaterial/*.root'
+	#outFileName = 'noi/c14_2c/c14_dataset.h5'
+
+	filePath ='/cefs/higgs/wxfang/JUNO/noise_remove/positron_skim/*.root'
+	outFileName = 'pos_2c/positron_skim_dataset.h5'
 
 	projection_dict, projection_dict_shape=getProjectionDict(projection_mode)
 
@@ -115,9 +126,9 @@ if __name__=="__main__":
 	print ('total events=%d, batch_size=%d, batchs=%d, last=%d'%(totalEntries, batch_size, batch, totalEntries%batch_size))
 
 	start=1
-	npe_cut = 100
+	npe_cut = 0
 	
-	for i in range(30):
+	for i in range(20):
 	#for i in range(1):
 		if start:
 			out_name = outFileName.replace('.h5','_batch%d_N%d.h5'%(i, batch_size))
